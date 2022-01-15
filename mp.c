@@ -1,6 +1,7 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
+#include <stdbool.h>
 #include <math.h>
 
 typedef enum Operator_ {
@@ -26,23 +27,14 @@ int precedence(Operator o) {
     }
 }
 
-float do_op(float a, float b, Operator o) {
-    switch (o) {
-        case SUB:
-            return a-b;
-        case ADD:
-            return a+b;
-        case MUL:
-            return a*b;
-        case DIV:
-            return a/b;
-        case POW:
-            return powf(a, b);
-    }
-}
+typedef struct Number_ {
+    float value;
+    char var;
+    float var_pow;
+} Number;
 
 typedef union NodeData_ {
-    float num;
+    Number num;
     enum {
         PARANTHESES_LEFT = '(',
         PARANTHESES_RIGHT = ')',
@@ -52,14 +44,12 @@ typedef union NodeData_ {
         // CURLY_RIGHT = '}'
     } bracket;
     Operator op;
-    char var;
 } NodeData;
 
 typedef enum DataType_ {
     NUMBER,
     OPERATOR,
     BRACKET,
-    VARIABLE,
     // ASSERTIONS // shit like = or >
 } DataType;
 
@@ -76,13 +66,11 @@ struct Leaf_ {
 
 void print_node(Node l) {
     if (l.type == NUMBER) {
-        printf("NUMBER(%f)", l.data.num);
+        printf("NUMBER(%f%c)", l.data.num.value, l.data.num.var);
     } else if (l.type == OPERATOR) {
         printf("OPERATOR(%c)", l.data.op);
     } else if (l.type == BRACKET) {
         printf("BRACKET(%c)", l.data.bracket);
-    } else if (l.type == VARIABLE) {
-        printf("VARIABLE(%c)", l.data.var);
     }
 }
 
@@ -101,13 +89,16 @@ void print_tree(Leaf* l, int level) {
 
 void print_node_char(Node l) {
     if (l.type == NUMBER) {
-        printf("%f", l.data.num);
+        if (!(l.data.num.var && l.data.num.value == 1))
+            printf("%f", l.data.num.value);
+        if (l.data.num.var)
+            printf("%c", l.data.num.var);
+        if (l.data.num.var && l.data.num.var_pow != 1)
+            printf("^%f", l.data.num.var_pow);
     } else if (l.type == OPERATOR) {
         printf("%c", l.data.op);
     } else if (l.type == BRACKET) {
         printf("%c", l.data.bracket);
-    } else if (l.type == VARIABLE) {
-        printf("%c", l.data.var);
     }
 }
 
@@ -132,6 +123,196 @@ void print_expr(Node* l, size_t size) {
     printf("\n");
 }
 
+Leaf* do_op(Number n1, Number n2, Operator o) {
+    Leaf* l = calloc(sizeof(Leaf), 1);
+    if (n1.var == n2.var) {
+        switch (o) {
+            case ADD:
+                if (n1.var && n1.var_pow != n2.var_pow) {
+                    l->node.type = OPERATOR;
+                    l->node.data.op = ADD;
+
+                    l->n1 = calloc(sizeof(Leaf), 1);
+                    l->n2 = calloc(sizeof(Leaf), 1);
+
+                    l->n1->node.type = NUMBER;
+                    l->n2->node.type = NUMBER;
+
+                    l->n1->node.data = (NodeData) { n1 };
+                    l->n2->node.data = (NodeData) { n2 };
+                } else {
+                    l->node.type = NUMBER;
+                    l->node.data = (NodeData) { (Number) { n1.value + n2.value, n1.var, n1.var_pow } };
+                }
+                break;
+            case SUB:
+                if (n1.var && n1.var_pow != n2.var_pow) {
+                    l->node.type = OPERATOR;
+                    l->node.data.op = SUB;
+
+                    l->n1 = calloc(sizeof(Leaf), 1);
+                    l->n2 = calloc(sizeof(Leaf), 1);
+
+                    l->n1->node.type = NUMBER;
+                    l->n2->node.type = NUMBER;
+
+                    l->n1->node.data = (NodeData) { n1 };
+                    l->n2->node.data = (NodeData) { n2 };
+                } else {
+                    l->node.type = NUMBER;
+                    l->node.data = (NodeData) { (Number) { n1.value - n2.value, n1.var, n1.var_pow } };
+                }
+                break;
+            case MUL:
+                l->node.type = NUMBER;
+                l->node.data = (NodeData) { (Number) { n1.value * n2.value, n1.var, n1.var_pow + n2.var_pow } };
+                break;
+            case DIV:
+                l->node.type = NUMBER;
+                l->node.data = (NodeData) { (Number) { n1.value / n2.value, n1.var, n1.var_pow - n2.var_pow } };
+                break;
+            case POW:
+                l->node.type = OPERATOR;
+                l->node.data.op = POW;
+
+                l->n1 = calloc(sizeof(Leaf), 1);
+                l->n2 = calloc(sizeof(Leaf), 1);
+
+                l->n1->node.type = NUMBER;
+                l->n2->node.type = NUMBER;
+
+                l->n1->node.data = (NodeData) { n1 };
+                l->n2->node.data = (NodeData) { n2 };
+                break;
+        }
+    } else {
+        switch (o) {
+            case ADD:
+                l->node.type = OPERATOR;
+                l->node.data.op  = ADD ;
+
+                l->n1 = calloc(sizeof(Leaf), 1);
+                l->n2 = calloc(sizeof(Leaf), 1);
+
+                l->n1->node.type = NUMBER;
+                l->n2->node.type = NUMBER;
+
+                l->n1->node.data = (NodeData) { n1 };
+                l->n2->node.data = (NodeData) { n2 };
+                break;
+            case SUB:
+                l->node.type = OPERATOR;
+                l->node.data.op = SUB ;
+
+                l->n1 = calloc(sizeof(Leaf), 1);
+                l->n2 = calloc(sizeof(Leaf), 1);
+
+                l->n1->node.type = NUMBER;
+                l->n2->node.type = NUMBER;
+
+                l->n1->node.data = (NodeData) { n1 };
+                l->n2->node.data = (NodeData) { n2 };
+                break;
+            case MUL:
+                if (n1.var == 0) {
+                    l->node.type = NUMBER;
+                    l->node.data = (NodeData) { (Number) { n1.value * n2.value, n2.var, n2.var_pow } };
+                } else if (n2.var == 0) {
+                    l->node.type = NUMBER;
+                    l->node.data = (NodeData) { (Number) { n1.value * n2.value, n1.var, n1.var_pow } };
+                } else {
+                    l->node.type = OPERATOR;
+                    l->node.data.op = MUL;
+
+                    l->n1 = calloc(sizeof(Leaf), 1);
+                    l->n2 = calloc(sizeof(Leaf), 1);
+
+                    l->n1->node.type = NUMBER;
+                    l->n2->node.type = NUMBER;
+
+                    l->n1->node.data = (NodeData) { n1 };
+                    l->n2->node.data = (NodeData) { n2 };
+                }
+                break;
+            case DIV:
+                if (n1.var == 0) {
+                    l->node.type = NUMBER;
+                    l->node.data = (NodeData) { (Number) { n1.value / n2.value, n2.var, -n2.var_pow } };
+                } else if (n2.var == 0) {
+                    l->node.type = NUMBER;
+                    l->node.data = (NodeData) { (Number) { n1.value / n2.value, n1.var, n1.var_pow } };
+                } else {
+                    l->node.type = OPERATOR;
+                    l->node.data.op = DIV;
+
+                    l->n1 = calloc(sizeof(Leaf), 1);
+                    l->n2 = calloc(sizeof(Leaf), 1);
+
+                    l->n1->node.type = NUMBER;
+                    l->n2->node.type = NUMBER;
+
+                    l->n1->node.data = (NodeData) { n1 };
+                    l->n2->node.data = (NodeData) { n2 };
+                }
+                if (l->node.type == NUMBER && l->node.data.num.var && (l->node.data.num.var_pow == 0 || l->node.data.num.value == 0))
+                        l->node.data.num.var = 0;
+                break;
+            case POW:
+                if (n1.var && !n2.var) {
+                    l->node.type = NUMBER;
+                    l->node.data.num = n1;
+                    l->node.data.num.var_pow*=n2.value;
+                } else {
+                    l->node.type = OPERATOR;
+                    l->node.data.op = POW;
+
+                    l->n1 = calloc(sizeof(Leaf), 1);
+                    l->n2 = calloc(sizeof(Leaf), 1);
+
+                    l->n1->node.type = NUMBER;
+                    l->n2->node.type = NUMBER;
+
+                    l->n1->node.data = (NodeData) { n1 };
+                    l->n2->node.data = (NodeData) { n2 };
+                }
+                break;
+        }
+    }
+    if (l->node.type == NUMBER && l->node.data.num.var && (l->node.data.num.var_pow == 0 || l->node.data.num.value == 0))
+        l->node.data.num.var = 0;
+    return l;
+}
+
+Leaf* eval(Leaf* top) {
+    if (top->node.type == NUMBER || top->n1 == NULL || top->n2 == NULL) {
+        return top;
+    } else {
+        if (top->n1->node.type != NUMBER) {
+            top->n1 = eval(top->n1);
+        }
+        if (top->n2->node.type != NUMBER) {
+            top->n2 = eval(top->n2);
+        }
+
+        if (top->node.type == OPERATOR && top->n1->node.type == NUMBER && top->n2->node.type == NUMBER) {
+            Leaf *top_new = malloc(sizeof(Leaf));
+            top_new = do_op(top->n1->node.data.num, top->n2->node.data.num, top->node.data.op);
+            free(top);
+            return top_new;
+        }
+        return top;
+    }
+}
+
+void print_expr_rpn(Leaf *top) {
+    if (top->n1)
+        print_expr_rpn(top->n1);
+    if (top->n2)
+        print_expr_rpn(top->n2);
+    print_node_char(top->node);
+    printf(" ");
+}
+
 size_t tokenize(char* input, Node **output) {
     // DONT FORGET TO FREE THE OUTPUT
     size_t output_size = 0;
@@ -148,30 +329,34 @@ size_t tokenize(char* input, Node **output) {
     int bytes_read;
 
     int neg = 0;
+    int func = 0;
     while (buf_offset < strlen(buffer)) {
         bytes_read = 0;
         sscanf((buffer+buf_offset), "%[0-9]%n", num, &bytes_read);
 
         if (bytes_read != 0) {
             if (neg) {
-                token = (Node) { NUMBER, 0 - atoi(num) };
+                token = (Node) { NUMBER, (Number) { -atoi(num), 0, 0.0 } };
                 neg = 0;
             }
             else
-                token = (Node) { NUMBER, atoi(num) };
+                token = (Node) { NUMBER, (Number) { atoi(num), 0, 0.0 } };
         } else {
             if (sscanf((buffer+buf_offset), "%[a-zA-Z]", &c)) {
-                token = (Node) { VARIABLE, c };
-                token.data.op = c;
+                token = (Node) { NUMBER, (Number) { 1.0, c, 1.0 } };
             // } else if (sscanf((buffer+buf_offset), "%[]{}()[]", &c)) {
             } else if (sscanf((buffer+buf_offset), "%[()]", &c)) {
                 token = (Node) { BRACKET, c };
                 token.data.op = c;
+            // } else if (sscanf((buffer+buf_offset), "%[(]", &c)) {
+            //     if ((*output)[output_size - 1].type == VARIABLE) {
+            //         
+            //     }
             } else if (sscanf((buffer+buf_offset), "%[/+*^]", &c)) {
                 token = (Node) { OPERATOR, c };
                 token.data.op = c;
             } else if (sscanf((buffer+buf_offset), "%[-]", &c)) {
-                if (output_size == 0 || ((*output)[output_size - 1].type != NUMBER && (*output)[output_size - 1].type != VARIABLE)) {
+                if (output_size == 0 || ((*output)[output_size - 1].type != NUMBER)) {
                     neg = 1;
                     buf_offset++;
                     continue;
@@ -203,7 +388,7 @@ Leaf* tokbtree(Node* tokens, size_t len) {
     memset(out_stack, 0, len);
 
     for (int i = 0; i < len; i++) {
-        if (tokens[i].type == NUMBER || tokens[i].type == VARIABLE) {
+        if (tokens[i].type == NUMBER) {
             out_stack[out_stack_size] = malloc(sizeof(Leaf));
             *(out_stack[out_stack_size]) = (Leaf) {tokens[i], NULL, NULL};
             out_stack_size++;
@@ -267,36 +452,6 @@ Leaf* tokbtree(Node* tokens, size_t len) {
     Leaf* top = out_stack[0];
     free(out_stack);
     return top;
-}
-
-Leaf* eval(Leaf* top) {
-    if (top->node.type == NUMBER || top->n1 == NULL || top->n2 == NULL) {
-        return top;
-    } else {
-        if (top->n1->node.type != NUMBER) {
-            top->n1 = eval(top->n1);
-        }
-        if (top->n2->node.type != NUMBER) {
-            top->n2 = eval(top->n2);
-        }
-
-        if (top->n1->node.type == NUMBER && top->n2->node.type == NUMBER) {
-            Leaf *top_new = malloc(sizeof(Leaf));
-            *top_new = (Leaf) { (Node) { NUMBER, do_op(top->n1->node.data.num, top->n2->node.data.num, top->node.data.op) } };
-            free(top);
-            return top_new;
-        }
-        return top;
-    }
-}
-
-void print_expr_rpn(Leaf *top) {
-    if (top->n1)
-        print_expr_rpn(top->n1);
-    if (top->n2)
-        print_expr_rpn(top->n2);
-    print_node_char(top->node);
-    printf(" ");
 }
 
 int main() {
