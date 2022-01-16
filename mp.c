@@ -172,17 +172,23 @@ Leaf* do_op(Number n1, Number n2, Operator o) {
                 l->node.data = (NodeData) { (Number) { n1.value / n2.value, n1.var, n1.var_pow - n2.var_pow } };
                 break;
             case POW:
-                l->node.type = OPERATOR;
-                l->node.data.op = POW;
+                if (n1.var) {
+                    l->node.type = OPERATOR;
+                    l->node.data.op = POW;
 
-                l->n1 = calloc(sizeof(Leaf), 1);
-                l->n2 = calloc(sizeof(Leaf), 1);
+                    l->n1 = calloc(sizeof(Leaf), 1);
+                    l->n2 = calloc(sizeof(Leaf), 1);
 
-                l->n1->node.type = NUMBER;
-                l->n2->node.type = NUMBER;
+                    l->n1->node.type = NUMBER;
+                    l->n2->node.type = NUMBER;
 
-                l->n1->node.data = (NodeData) { n1 };
-                l->n2->node.data = (NodeData) { n2 };
+                    l->n1->node.data = (NodeData) { n1 };
+                    l->n2->node.data = (NodeData) { n2 };
+                } else {
+                    l->node.type = NUMBER;
+                    l->node.data.num = n1;
+                    l->node.data.num.value = powf(l->node.data.num.value, n2.value);
+                }
                 break;
         }
     } else {
